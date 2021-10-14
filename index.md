@@ -1,37 +1,13 @@
-## Welcome to GitHub Pages
+# Clarin-PL speech tools plugin for AnnotationPro
 
-You can use the [editor on GitHub](https://github.com/CLARIN-PL/speech-annotationpro-plugin/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
+This page contains the plugin for Annotation Pro. You can download the file below and install it using the instructions below. Inside the archive you will also find the vc_redist.x64.exe setup that needs to be installed on the machine that the tool is to be used on.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+Annotation Pro includes the ability to add a custom automatic segmentation module provided by the user. This adds the option to use a personal tool within Annotation Pro, thus allowing the user to perform automatic segmentation of personal data collections on multiple levels of annotation. The ability to work in a desktop environment can often be more effective, especially with longer audio or video file or in he presence of lots of noise in the data. Such a tool allows for a tighter supervision of the process. Using the tool offline also allows for the annotation of sensitive data, which cannot be transmitted to external servers.
 
-### Markdown
+To install a module, it needs to be placed in the Documents -> Annotation Pro -> Segmentation Modules folder. The name of the folder containg the module will be used as the name of the tool within the Annotation Pro interface.
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+In the example below, the name will be My Segmentator. After placing the module in the correct folder the segmentation option will be made available under the Auto Segmentation menu option:
 
-```markdown
-Syntax highlighted code block
+The user chooses the module from the list (there can be several such modules at the same time) - here, for example, we choose the CLARIN Align module:
 
-# Header 1
-## Header 2
-### Header 3
-
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
-```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/CLARIN-PL/speech-annotationpro-plugin/settings/pages). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://support.github.com/contact) and we’ll help you sort it out.
+Sample segmentation result:

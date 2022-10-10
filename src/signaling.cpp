@@ -1,5 +1,36 @@
 #include <iostream>
 #include <fstream>
+
+#if defined(_WIN32)
+#include <windows.h>
+
+void init_wait() {
+
+}
+
+void wait_for_signal() {
+    HANDLE hMutex;
+
+    while (true) {
+        hMutex = OpenMutex(MUTEX_ALL_ACCESS, FALSE, TEXT("Global\\KALDI_ALIGNER"));
+        if (hMutex) {
+            break;
+        }
+        Sleep(500);
+    }
+    CloseHandle(hMutex);
+}
+
+
+void do_signal() {
+    HANDLE hMutex;
+    hMutex=CreateMutex(NULL,FALSE,TEXT("Global\\KALDI_ALIGNER"));
+    if (hMutex) {
+        Sleep(750);
+        CloseHandle(hMutex);
+    }
+}
+#else
 #include <signal.h>
 #include <unistd.h>
 
@@ -34,3 +65,4 @@ void do_signal() {
   pidf.close();
   kill(pid, SIGUSR1);
 }
+#endif

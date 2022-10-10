@@ -1,0 +1,5 @@
+build/
+.vs/
+models*/
+lib/
+test/

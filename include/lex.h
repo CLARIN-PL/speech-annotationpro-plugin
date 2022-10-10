@@ -35,6 +35,10 @@ class Lexicon {
   std::vector<int32_t> load_transcript(const std::string &filename);
   std::vector<std::string> int2words(std::vector<int32_t> words);
   std::vector<std::string> int2phones(std::vector<int32_t> words);
+
+  const std::vector<std::string> &get_phonelist() {
+    return phonelist;
+  }
 };
 
 #endif //KALDIALIGNER_SRC_LEX_H_

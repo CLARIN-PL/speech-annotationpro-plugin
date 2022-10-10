@@ -1,5 +1,4 @@
 #include <feat/wave-reader.h>
-#include <transform/cmvn.h>
 #include <hmm/hmm-utils.h>
 #include <nnet3/nnet-am-decodable-simple.h>
 #include <nnet3/nnet-utils.h>
@@ -69,6 +68,10 @@ KaldiProcess::KaldiProcess(std::string model_dir) {
 
   word_boundary_info = std::unique_ptr<WordBoundaryInfo>(new WordBoundaryInfo(opts, word_boundary_file));
 
+//  std::ofstream trans_debug("trans.txt");
+//  trans_model.Print(trans_debug, lexicon->get_phonelist());
+//  trans_debug.close();
+
 }
 
 void KaldiProcess::MakeLatticeFromLinear(const std::vector<int32> &ali,
@@ -98,7 +101,7 @@ Result KaldiProcess::process(std::string wav_file, std::string trans_file) {
   Matrix<BaseFloat> features;
 
   WaveData wave_data;
-  std::ifstream file(wav_file.c_str(),std::ios::binary);
+  std::ifstream file(wav_file.c_str(), std::ios::binary);
   wave_data.Read(file);
   file.close();
 

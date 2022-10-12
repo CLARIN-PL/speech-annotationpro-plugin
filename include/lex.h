@@ -9,6 +9,7 @@
 class Lexicon {
  private:
   G2P *g2p;
+  std::map<std::string, std::vector<std::string>> g2p_cache;
 
   double sil_prob;
   std::string sil_phone;
@@ -23,7 +24,7 @@ class Lexicon {
   fst::StdVectorFst lexicon_fst;
 
  public:
-  explicit Lexicon(const std::string &g2p_model_file, const std::string &phone_list_file);
+  explicit Lexicon(const std::string &lex_file, const std::string &g2p_model_file, const std::string &phone_list_file);
   ~Lexicon();
 
   void load_file(const std::string &filename);

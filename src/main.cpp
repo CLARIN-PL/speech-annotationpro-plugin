@@ -3,7 +3,7 @@
 #include "g2p.h"
 #include "signaling.h"
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
 
   if (argc == 2 && std::string(argv[1]) == "-s") {
     do_signal();
@@ -22,7 +22,8 @@ int main(int argc, char **argv) {
     background_mode = true;
   }
 
-  try {
+  //try 
+  {
     KaldiProcess kaldi(argv[3]);
 
     while (true) {
@@ -32,19 +33,19 @@ int main(int argc, char **argv) {
       auto res = kaldi.process(argv[1], argv[2]);
 
       std::ofstream out_words(argv[4]);
-      for (const auto &w: res.words) {
+      for (const auto& w : res.words) {
         if (w.text == "<eps>")
           continue;
-        out_words << w.start << "\t" << w.end << "\t" << w.text << std::endl;
+        out_words << w.start << "\t" << w.end - w.start << "\t" << w.text << std::endl;
       }
       out_words.close();
 
       std::ofstream out_phones(argv[5]);
-      for (const auto &p: res.phones) {
+      for (const auto& p : res.phones) {
         std::string pt = p.text;
         if (pt[pt.size() - 2] == '_')
           pt = pt.substr(0, pt.size() - 2);
-        out_phones << p.start << "\t" << p.end << "\t" << pt << std::endl;
+        out_phones << p.start << "\t" << p.end - p.start << "\t" << pt << std::endl;
       }
       out_phones.close();
 
@@ -52,12 +53,13 @@ int main(int argc, char **argv) {
         break;
     }
   }
+  /*
   catch (const std::exception &e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
   }
   catch (...) {
     std::cerr << "UNKNOWN ERROR" << std::endl;
-  }
+  }*/
 
   return 0;
 }

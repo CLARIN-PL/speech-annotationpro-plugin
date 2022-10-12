@@ -19,7 +19,8 @@ public:
 			for (auto u : d.Uniques) {
 				w += osyms->Find(u) + " ";
 			}
-			ret.push_back(w);
+			if(!w.empty())
+				ret.push_back(w);
 		}
 		return ret;
 	}

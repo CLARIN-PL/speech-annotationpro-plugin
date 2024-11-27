@@ -1,16 +1,19 @@
 #include "lex.h"
 #include "exc.h"
+#include <cmath>
 #include <iostream>
 #include <set>
-#include <cmath>
+#include <vector>
 
-std::string strip(const std::string& s) {
+std::string strip(const std::string &s) {
   auto a = s.find_first_not_of(" \t"), b = s.find_last_not_of(" \t");
   return s.substr(a, b - a + 1);
 }
 
-Lexicon::Lexicon(const std::string& lex_file, const std::string& g2p_model_file, const std::string& phone_list_file) :
-  sil_prob(0.5), sil_phone("sil") {
+Lexicon::Lexicon(const std::string &lex_file, const std::string &g2p_model_file,
+                 const std::string &phone_list_file,
+                 const std::string &oov_token_file)
+    : sil_prob(0.5) {
   g2p = make_g2p(g2p_model_file);
   if (!g2p) {
     MsgException exc("Cannot load G2P model: " + g2p_model_file);
@@ -27,8 +30,16 @@ Lexicon::Lexicon(const std::string& lex_file, const std::string& g2p_model_file,
     if (!ph.empty())
       phonelist.emplace_back(ph);
   }
+  phone_file.close();
+  std::ifstream oov_file(oov_token_file.c_str());
+  if (oov_file.fail()) {
+    MsgException exc("Cannot load OOV token: " + oov_token_file);
+    throw exc;
+  }
+  oov_file >> oov_token >> sil_phone;
+  oov_file.close();
   int c = 0;
-  for (const auto& p : phonelist) {
+  for (const auto &p : phonelist) {
     phonemes[p] = c;
     rphonemes[c] = p;
     c++;
@@ -54,7 +65,8 @@ Lexicon::Lexicon(const std::string& lex_file, const std::string& g2p_model_file,
       if (phsstr.fail())
         break;
       if (phonemes.count(phtok + "_S") == 0 && phonemes.count(phtok) == 0) {
-        std::cerr << "ERROR in word " << word << " in lexicon cache: missing phone " << phtok << std::endl;
+        std::cerr << "ERROR in word " << word
+                  << " in lexicon cache: missing phone " << phtok << std::endl;
       }
     }
     if (skip) {
@@ -64,15 +76,15 @@ Lexicon::Lexicon(const std::string& lex_file, const std::string& g2p_model_file,
     if (g2p_cache.count(word) > 0)
       g2p_cache[word].push_back(trans);
     else
-      g2p_cache[word] = std::vector < std::string>({ trans });
+      g2p_cache[word] = std::vector<std::string>({trans});
   }
+  cache_file.close();
 }
 
-Lexicon::~Lexicon() {
-  delete g2p;
-}
+Lexicon::~Lexicon() { delete g2p; }
 
-std::vector<std::string> transcription_to_position_dependent(const std::string& trans) {
+std::vector<std::string>
+transcription_to_position_dependent(const std::string &trans) {
   std::vector<std::string> ret;
   std::stringstream sstr(trans);
   std::string ph;
@@ -86,8 +98,7 @@ std::vector<std::string> transcription_to_position_dependent(const std::string& 
   if (ret.size() == 1) {
     if (ret[0] != "sil" && ret[0] != "sp" && ret[0] != "<eps>")
       ret[0] = ret[0] + "_S";
-  }
-  else {
+  } else {
     if (ret[0] != "<eps>")
       ret[0] = ret[0] + "_B";
     size_t n = ret.size();
@@ -101,7 +112,7 @@ std::vector<std::string> transcription_to_position_dependent(const std::string& 
   return ret;
 }
 
-void Lexicon::load_file(const std::string& filename) {
+void Lexicon::load_file(const std::string &filename) {
 
   std::ifstream file(filename.c_str());
   std::string line, word;
@@ -109,7 +120,8 @@ void Lexicon::load_file(const std::string& filename) {
   while (!file.fail()) {
     line = "";
     getline(file, line);
-    if (line.empty()) continue;
+    if (line.empty())
+      continue;
     std::stringstream sstr(line);
     while (!sstr.eof()) {
       word = "";
@@ -123,8 +135,8 @@ void Lexicon::load_file(const std::string& filename) {
 
   wordlist.clear();
   wordlist.emplace_back("<eps>");
-  wordlist.emplace_back("<unk>");
-  for (const auto& w : wordset) {
+  wordlist.emplace_back(oov_token);
+  for (const auto &w : wordset) {
     wordlist.push_back(w);
   }
   wordlist.emplace_back("#0");
@@ -134,7 +146,7 @@ void Lexicon::load_file(const std::string& filename) {
   words.clear();
   rwords.clear();
   int c = 0;
-  for (auto const& w : wordlist) {
+  for (auto const &w : wordlist) {
     words[w] = c;
     rwords[c] = w;
     c++;
@@ -144,18 +156,19 @@ void Lexicon::load_file(const std::string& filename) {
   double no_sil_cost = -log(1.0 - sil_prob);
 
   int start_state = 0;
-  int loop_state = 1; //words enter and leave from here
-  int sil_state =
-    2; // words terminate here when followed by silence; this state has a silence transition to loop_state.
-  int next_state = 3;  //the next un-allocated state, will be incremented as we go.
+  int loop_state = 1; // words enter and leave from here
+  int sil_state = 2;  // words terminate here when followed by silence; this
+                      // state has a silence transition to loop_state.
+  int next_state =
+      3; // the next un-allocated state, will be incremented as we go.
 
   fst::SymbolTable psyms;
   psyms.AddSymbol("<eps>");
-  for (const auto& p : phonelist)
+  for (const auto &p : phonelist)
     psyms.AddSymbol(p);
   fst::SymbolTable wsyms;
   wsyms.AddSymbol("<eps>");
-  for (const auto& w : wordlist)
+  for (const auto &w : wordlist)
     wsyms.AddSymbol(w);
 
   lexicon_fst.SetInputSymbols(&psyms);
@@ -169,16 +182,15 @@ void Lexicon::load_file(const std::string& filename) {
 
   lexicon_fst.AddArc(start_state, fst::StdArc(0, 0, no_sil_cost, loop_state));
   lexicon_fst.AddArc(start_state, fst::StdArc(0, 0, sil_cost, sil_state));
-  lexicon_fst.AddArc(sil_state, fst::StdArc(psyms.Find(sil_phone), 0, 0, loop_state));
+  lexicon_fst.AddArc(sil_state,
+                     fst::StdArc(psyms.Find(sil_phone), 0, 0, loop_state));
 
-  for (const auto& word : wordlist) {
+  for (const auto &word : wordlist) {
     std::vector<std::string> transcriptions;
-    if (word == "<s>" || word == "</s>" || word == "#0")
+    if (word == "<s>" || word == "</s>" || word == "#0" || word == "<eps>")
       continue;
-    if (word == "<eps>")
-      transcriptions = { "<eps>" };
-    else if (word == "<unk>")
-      transcriptions = { "sil" };
+    else if (word == oov_token)
+      transcriptions = {sil_phone};
     else {
       if (g2p_cache.count(word) > 0)
         transcriptions = g2p_cache[word];
@@ -186,49 +198,55 @@ void Lexicon::load_file(const std::string& filename) {
         transcriptions = g2p->convert(word);
     }
     if (transcriptions.empty()) {
-      transcriptions = { "sil" };
+      transcriptions = {sil_phone};
     }
-    for (const auto& t : transcriptions) {
+    for (const auto &t : transcriptions) {
       long output_word = wsyms.Find(word);
-      double pron_cost = 0; //usually it's: -log(pronprob);
+      double pron_cost = 0; // usually it's: -log(pronprob);
       int cur_state = loop_state;
       auto pron = transcription_to_position_dependent(t);
       for (int i = 0; i < pron.size() - 1; i++) {
         auto p = pron[i];
-        lexicon_fst.AddArc(cur_state, fst::StdArc(psyms.Find(p), output_word, pron_cost, next_state));
+        lexicon_fst.AddArc(cur_state, fst::StdArc(psyms.Find(p), output_word,
+                                                  pron_cost, next_state));
         lexicon_fst.AddState();
         cur_state = next_state;
         next_state++;
         output_word = 0;
         pron_cost = 0;
       }
-      lexicon_fst.AddArc(cur_state, fst::StdArc(psyms.Find(pron.back()), output_word, no_sil_cost + pron_cost, loop_state));
-      lexicon_fst.AddArc(cur_state, fst::StdArc(psyms.Find(pron.back()), output_word, sil_cost + pron_cost, sil_state));
+      lexicon_fst.AddArc(cur_state,
+                         fst::StdArc(psyms.Find(pron.back()), output_word,
+                                     no_sil_cost + pron_cost, loop_state));
+      lexicon_fst.AddArc(cur_state,
+                         fst::StdArc(psyms.Find(pron.back()), output_word,
+                                     sil_cost + pron_cost, sil_state));
     }
   }
 
   lexicon_fst.SetFinal(loop_state, 0);
 
-  //  wsyms.WriteText("words.txt");
-  //  psyms.WriteText("phones.txt");
-  //  std::ofstream debug1("words2.txt");
-  //  for (auto const &x: words)
-  //    debug1 << x.first << " " << x.second << std::endl;
-  //  debug1.close();
-  //  std::ofstream debug2("phones2.txt");
-  //  for (auto const &x: phonemes)
-  //    debug2 << x.first << " " << x.second << std::endl;
-  //  debug2.close();
+  // wsyms.WriteText("words.txt");
+  // psyms.WriteText("phones.txt");
+  // std::ofstream debug1("words2.txt");
+  // for (auto const &x: words)
+  //   debug1 << x.first << " " << x.second << std::endl;
+  // debug1.close();
+  // std::ofstream debug2("phones2.txt");
+  // for (auto const &x: phonemes)
+  //   debug2 << x.first << " " << x.second << std::endl;
+  // debug2.close();
 }
 
-std::vector<int32_t> Lexicon::load_transcript(const std::string& filename) {
+std::vector<int32_t> Lexicon::load_transcript(const std::string &filename) {
   std::ifstream file(filename.c_str());
   std::string line, word;
   std::vector<int32_t> ret;
   while (!file.fail()) {
     line = "";
     getline(file, line);
-    if (line.empty()) continue;
+    if (line.empty())
+      continue;
     std::stringstream sstr(line);
     while (!sstr.eof()) {
       word = "";

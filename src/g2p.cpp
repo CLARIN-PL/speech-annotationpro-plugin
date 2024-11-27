@@ -1,6 +1,7 @@
 #include "g2p.h"
 using std::string;
 #include "include/PhonetisaurusScript.h"
+using namespace fst;
 
 class PhonetisaurusModel : public G2P {
 private:

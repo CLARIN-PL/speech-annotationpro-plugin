@@ -1,10 +1,10 @@
+#include "kaldi.h"
+#include <decoder/faster-decoder.h>
 #include <feat/wave-reader.h>
 #include <hmm/hmm-utils.h>
+#include <lat/lattice-functions.h>
 #include <nnet3/nnet-am-decodable-simple.h>
 #include <nnet3/nnet-utils.h>
-#include <decoder/faster-decoder.h>
-#include <lat/lattice-functions.h>
-#include "kaldi.h"
 
 KaldiProcess::KaldiProcess(std::string model_dir) {
   std::string use_gpu = "yes";
@@ -14,19 +14,24 @@ KaldiProcess::KaldiProcess(std::string model_dir) {
   std::string model_file = model_dir + "/nnet3/final.mdl";
   std::string tree_file = model_dir + "/nnet3/tree";
   std::string phone_list_file = model_dir + "/phones.list";
+  std::string oov_token_file = model_dir + "/oov_map.txt";
   std::string word_boundary_file = model_dir + "/word_boundary.int";
 
   transition_scale = 1.0;
   self_loop_scale = 1.0;
   beam = 200;
 
-  ivector_config.cmvn_config_rxfilename = model_dir + "/extractor/online_cmvn.conf";
+  ivector_config.cmvn_config_rxfilename =
+      model_dir + "/extractor/online_cmvn.conf";
   ivector_config.ivector_period = 10;
-  ivector_config.splice_config_rxfilename = model_dir + "/extractor/splice.conf";
+  ivector_config.splice_config_rxfilename =
+      model_dir + "/extractor/splice.conf";
   ivector_config.lda_mat_rxfilename = model_dir + "/extractor/final.mat";
-  ivector_config.global_cmvn_stats_rxfilename = model_dir + "/extractor/global_cmvn.stats";
+  ivector_config.global_cmvn_stats_rxfilename =
+      model_dir + "/extractor/global_cmvn.stats";
   ivector_config.diag_ubm_rxfilename = model_dir + "/extractor/final.dubm";
-  ivector_config.ivector_extractor_rxfilename = model_dir + "/extractor/final.ie";
+  ivector_config.ivector_extractor_rxfilename =
+      model_dir + "/extractor/final.ie";
   ivector_config.num_gselect = 5;
   ivector_config.min_post = 0.025;
   ivector_config.posterior_scale = 0.1;
@@ -38,7 +43,8 @@ KaldiProcess::KaldiProcess(std::string model_dir) {
   CuDevice::Instantiate().SelectGpuId(use_gpu);
 #endif
 
-  lexicon = std::unique_ptr<Lexicon>(new Lexicon(g2p_cache_file, g2p_model_file, phone_list_file));
+  lexicon = std::unique_ptr<Lexicon>(new Lexicon(
+      g2p_cache_file, g2p_model_file, phone_list_file, oov_token_file));
 
   ParseOptions po("");
   MfccOptions mfcc_opts;
@@ -48,9 +54,10 @@ KaldiProcess::KaldiProcess(std::string model_dir) {
 
   TrainingGraphCompilerOptions gopts;
   int32 batch_size = 250;
-  gopts.transition_scale = 0.0;  // Change the default to 0.0 since we will generally add the
-  // transition probs in the alignment phase (since they change eacm time)
-  gopts.self_loop_scale = 0.0;  // Ditto for self-loop probs.
+  gopts.transition_scale =
+      0.0; // Change the default to 0.0 since we will generally add the
+  // transition probs in the alignment phase (since they change each time)
+  gopts.self_loop_scale = 0.0; // Ditto for self-loop probs.
 
   ReadKaldiObject(tree_file, &tree);
 
@@ -62,24 +69,26 @@ KaldiProcess::KaldiProcess(std::string model_dir) {
   SetDropoutTestMode(true, &(am_nnet.GetNnet()));
   CollapseModel(CollapseModelConfig(), &(am_nnet.GetNnet()));
 
-  compiler = std::unique_ptr<CachingOptimizingCompiler>(new CachingOptimizingCompiler(
-    am_nnet.GetNnet(), decodable_opts.optimize_config));
+  ReadKaldiObject(model_file, &trans_model);
+
+  compiler =
+      std::unique_ptr<CachingOptimizingCompiler>(new CachingOptimizingCompiler(
+          am_nnet.GetNnet(), decodable_opts.optimize_config));
 
   WordBoundaryInfoNewOpts opts;
 
-  word_boundary_info = std::unique_ptr<WordBoundaryInfo>(new WordBoundaryInfo(opts, word_boundary_file));
+  word_boundary_info = std::unique_ptr<WordBoundaryInfo>(
+      new WordBoundaryInfo(opts, word_boundary_file));
 
   //  std::ofstream trans_debug("trans.txt");
   //  trans_model.Print(trans_debug, lexicon->get_phonelist());
   //  trans_debug.close();
-
 }
 
-void KaldiProcess::MakeLatticeFromLinear(const std::vector<int32>& ali,
-  const std::vector<int32>& words,
-  BaseFloat lm_cost,
-  BaseFloat ac_cost,
-  Lattice* lat_out) {
+void KaldiProcess::MakeLatticeFromLinear(const std::vector<int32> &ali,
+                                         const std::vector<int32> &words,
+                                         BaseFloat lm_cost, BaseFloat ac_cost,
+                                         Lattice *lat_out) {
   typedef LatticeArc::StateId StateId;
   typedef LatticeArc::Weight Weight;
   typedef LatticeArc::Label Label;
@@ -91,7 +100,7 @@ void KaldiProcess::MakeLatticeFromLinear(const std::vector<int32>& ali,
     Label olabel = (i < words.size() ? words[i] : 0);
     StateId next_state = lat_out->AddState();
     lat_out->AddArc(cur_state,
-      LatticeArc(ilabel, olabel, Weight::One(), next_state));
+                    LatticeArc(ilabel, olabel, Weight::One(), next_state));
     cur_state = next_state;
   }
   lat_out->SetFinal(cur_state, Weight(lm_cost, ac_cost));
@@ -126,9 +135,8 @@ Result KaldiProcess::process(std::string wav_file, std::string trans_file) {
 
   ivector_feature.SetAdaptationState(adaptation_state);
 
-  int32 T = features.NumRows(),
-    n = ivector_config.ivector_period,
-    num_ivectors = (T + n - 1) / n;
+  int32 T = features.NumRows(), n = ivector_config.ivector_period,
+        num_ivectors = (T + n - 1) / n;
 
   Matrix<BaseFloat> ivectors(num_ivectors, ivector_feature.Dim());
 
@@ -143,15 +151,19 @@ Result KaldiProcess::process(std::string wav_file, std::string trans_file) {
   //  ivector_writer.Close();
 
   TrainingGraphCompilerOptions gopts;
-  gopts.transition_scale = 0.0;  // Change the default to 0.0 since we will generally add the
+  gopts.transition_scale =
+      0.0; // Change the default to 0.0 since we will generally add the
   // transition probs in the alignment phase (since they change eacm time)
-  gopts.self_loop_scale = 0.0;  // Ditto for self-loop probs.
+  gopts.self_loop_scale = 0.0; // Ditto for self-loop probs.
 
   std::vector<int32> disambig_syms;
 
   lexicon->load_file(trans_file);
 
-  auto* lex_fst = new fst::StdVectorFst(lexicon->get_fst());
+  auto *lex_fst = new fst::StdVectorFst(lexicon->get_fst());
+
+  lex_fst->Write("L.fst");
+
   TrainingGraphCompiler gc(trans_model, tree, lex_fst, disambig_syms, gopts);
 
   std::vector<int32_t> transcription = lexicon->load_transcript(trans_file);
@@ -164,12 +176,12 @@ Result KaldiProcess::process(std::string wav_file, std::string trans_file) {
   //  fst_writer.Write("sent001", graph);
   //  fst_writer.Close();
 
-  AddTransitionProbs(trans_model, disambig_syms, transition_scale, self_loop_scale, &graph);
+  AddTransitionProbs(trans_model, disambig_syms, transition_scale,
+                     self_loop_scale, &graph);
 
   DecodableAmNnetSimple nnet_decodable(
-    decodable_opts, trans_model, am_nnet,
-    features, NULL, &ivectors,
-    ivector_config.ivector_period, compiler.get());
+      decodable_opts, trans_model, am_nnet, features, NULL, &ivectors,
+      ivector_config.ivector_period, compiler.get());
 
   FasterDecoderOptions decode_opts;
   decode_opts.beam = beam;
@@ -181,7 +193,7 @@ Result KaldiProcess::process(std::string wav_file, std::string trans_file) {
   CuDevice::Instantiate().PrintProfile();
 #endif
 
-  fst::VectorFst<LatticeArc> decoded;  // linear FST.
+  fst::VectorFst<LatticeArc> decoded; // linear FST.
   decoder.GetBestPath(&decoded);
 
   std::vector<int32> alignment, words, times, lengths;
@@ -204,7 +216,8 @@ Result KaldiProcess::process(std::string wav_file, std::string trans_file) {
 
   auto word_text = lexicon->int2words(words);
   for (int i = 0; i < word_text.size(); i++)
-    ret.words.emplace_back(word_text[i], times[i] / 100.0, (times[i] + lengths[i]) / 100.0);
+    ret.words.emplace_back(word_text[i], times[i] / 100.0,
+                           (times[i] + lengths[i]) / 100.0);
 
   ConvertLattice(aligned_clat, &lat);
   ConvertLatticeToPhones(trans_model, &lat);
@@ -216,7 +229,8 @@ Result KaldiProcess::process(std::string wav_file, std::string trans_file) {
   for (int i = 0; i < phone_text.size(); i++) {
     auto ph = phone_text[i];
     if (ph != "sil" && ph != "sp") {
-      ret.phones.emplace_back(ph, times[i] / 100.0, (times[i] + lengths[i]) / 100.0);
+      ret.phones.emplace_back(ph, times[i] / 100.0,
+                              (times[i] + lengths[i]) / 100.0);
     }
   }
 
